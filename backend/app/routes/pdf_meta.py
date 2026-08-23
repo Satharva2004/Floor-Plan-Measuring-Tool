@@ -34,6 +34,7 @@ def get_pdf(pdf: dict = Depends(require_pdf_owner)):
         "id": pdf["id"],
         "filename": pdf["filename"],
         "page_count": pdf["page_count"],
+        "pages": pdf.get("pages"),
         "url": url,
         "status": pdf.get("status", "ready"),
         "stage": pdf.get("stage"),

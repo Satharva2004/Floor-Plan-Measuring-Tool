@@ -83,10 +83,16 @@ export interface UploadResult {
  * real bytes transferred via `upload.onprogress` - fetch has no equivalent
  * for request bodies across browsers.
  */
-export function uploadPdf(token: string, file: File, onProgress: (fraction: number) => void): Promise<UploadResult> {
+export function uploadPdf(
+  token: string,
+  file: File,
+  pages: string,
+  onProgress: (fraction: number) => void
+): Promise<UploadResult> {
   return new Promise((resolve, reject) => {
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("pages", pages);
 
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${API_URL}/upload`);

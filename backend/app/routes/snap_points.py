@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 
-from app.dependencies import require_pdf_owner
+from app.dependencies import require_pdf_page
 from app.routes.extract import get_segments
 from app.services import cache
 from app.services.snap_points import generate_snap_points
@@ -21,6 +21,6 @@ def get_snap_points(pdf_id: str, page_number: int):
 
 
 @router.get("/pdfs/{pdf_id}/pages/{page_number}/snap-points")
-def get_page_snap_points(pdf_id: str, page_number: int, pdf: dict = Depends(require_pdf_owner)):
+def get_page_snap_points(pdf_id: str, page_number: int, pdf: dict = Depends(require_pdf_page)):
     points = get_snap_points(pdf_id, page_number)
     return {"pdf_id": pdf_id, "page": page_number, "point_count": len(points), "points": points}

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 
-from app.dependencies import require_pdf_owner
+from app.dependencies import require_pdf_page
 from app.services import cache
 from app.services.extraction import extract_segments
 from app.services.pdf_loader import load_page
@@ -24,6 +24,6 @@ def get_segments(pdf_id: str, page_number: int):
 
 
 @router.get("/pdfs/{pdf_id}/pages/{page_number}/segments")
-def get_page_segments(pdf_id: str, page_number: int, pdf: dict = Depends(require_pdf_owner)):
+def get_page_segments(pdf_id: str, page_number: int, pdf: dict = Depends(require_pdf_page)):
     segments = get_segments(pdf_id, page_number)
     return {"pdf_id": pdf_id, "page": page_number, "segment_count": len(segments), "segments": segments}

@@ -24,6 +24,9 @@ export interface PdfSummary {
 
 export interface PdfMeta extends PdfSummary {
   url: string;
+  /** Real PDF page numbers selected for processing at upload time. `null`
+   * for documents uploaded before this field existed - treat as "all". */
+  pages: number[] | null;
   stage: ProcessingStage | null;
   pages_processed: number | null;
   pages_total: number | null;

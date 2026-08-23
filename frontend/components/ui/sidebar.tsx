@@ -499,21 +499,26 @@ const sidebarMenuButtonVariants = cva(
   }
 )
 
-function SidebarMenuButton({
-  render,
-  isActive = false,
-  variant = "default",
-  size = "default",
-  tooltip,
-  className,
-  ...props
-}: useRender.ComponentProps<"button"> &
-  React.ComponentProps<"button"> & {
-    isActive?: boolean
-    tooltip?: string | React.ComponentProps<typeof TooltipContent>
-  } & VariantProps<typeof sidebarMenuButtonVariants>) {
+// forwardRef matters here beyond the usual ref-to-DOM use case: useRender's
+// own `ref` parameter is how it attaches to the element it renders, and
+// without it this component can't be given one at all. That silently breaks
+// any Base UI trigger (DropdownMenu, Menu, Popover, ...) that renders this
+// as its trigger, since those need a ref on their trigger element to
+// position/open their popup - it's not just a React console warning here.
+const SidebarMenuButton = React.forwardRef<
+  HTMLButtonElement,
+  useRender.ComponentProps<"button"> &
+    React.ComponentProps<"button"> & {
+      isActive?: boolean
+      tooltip?: string | React.ComponentProps<typeof TooltipContent>
+    } & VariantProps<typeof sidebarMenuButtonVariants>
+>(function SidebarMenuButton(
+  { render, isActive = false, variant = "default", size = "default", tooltip, className, ...props },
+  ref
+) {
   const { isMobile, state } = useSidebar()
   const comp = useRender({
+    ref: ref as React.Ref<Element>,
     defaultTagName: "button",
     props: mergeProps<"button">(
       {
@@ -551,7 +556,7 @@ function SidebarMenuButton({
       />
     </Tooltip>
   )
-}
+})
 
 function SidebarMenuAction({
   className,

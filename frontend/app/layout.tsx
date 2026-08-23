@@ -4,11 +4,12 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/lib/auth-context";
+import { APP_NAME } from "@/lib/constants";
 
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Plan Measuring Tool",
+  title: APP_NAME,
   description: "Upload, process, and measure architectural plan PDFs",
 };
 

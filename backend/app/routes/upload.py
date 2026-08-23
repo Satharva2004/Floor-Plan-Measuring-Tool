@@ -78,6 +78,7 @@ def upload_file(
             # takes it through the rest of the real pipeline.
             "status": "processing",
             "stage": "reading",
+            "pages": pages_to_process,
             "pages_processed": 0,
             "pages_total": len(pages_to_process),
             "error": None,

@@ -11,12 +11,13 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Document, Page, pdfjs, type PageProps } from "react-pdf";
+import { Document, Page, type PageProps } from "react-pdf";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -26,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import * as api from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -33,8 +35,7 @@ import { cn } from "@/lib/utils";
 import type { PdfMeta, Segment, SnapPoint } from "@/lib/types";
 
 import { SnapOverlay, type PdfViewport } from "@/components/snap-overlay";
-
-pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+import "@/lib/pdfjs-worker";
 
 type LoadedPage = NonNullable<PageProps["onLoadSuccess"]> extends (page: infer P) => void ? P : never;
 
@@ -65,6 +66,16 @@ const MAX_ZOOM = 4;
 const ZOOM_STEP = 1.2;
 const FIT_PADDING_PX = 48;
 
+function PdfLoadingIndicator({ progress }: { progress: number | null }) {
+  return (
+    <div className="flex h-[70vh] w-[min(70vw,42rem)] flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+      <Spinner className="size-6" />
+      <span>{progress != null ? `Loading PDF — ${Math.round(progress * 100)}%` : "Loading PDF…"}</span>
+      {progress != null && <Progress value={Math.round(progress * 100)} className="w-48" />}
+    </div>
+  );
+}
+
 function ToolbarButton({
   label,
   onClick,
@@ -93,8 +104,13 @@ export function PdfViewer({ pdfId }: { pdfId: string }) {
 
   const [meta, setMeta] = useState<PdfMeta | null>(null);
   const [metaError, setMetaError] = useState<string | null>(null);
+  const [pdfLoadProgress, setPdfLoadProgress] = useState<number | null>(null);
 
-  const [currentPage, setCurrentPage] = useState(1);
+  // currentIndex is a position within availablePages (below), not a raw PDF
+  // page number - the selected pages can be a non-contiguous subset (e.g.
+  // 1, 4, 7), so navigation has to step through that set rather than
+  // through every page number in the document.
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [pageInputValue, setPageInputValue] = useState("1");
 
   const [points, setPoints] = useState<SnapPoint[] | null>(null);
@@ -126,11 +142,21 @@ export function PdfViewer({ pdfId }: { pdfId: string }) {
       ? customFeetPerInch
       : SCALE_PRESETS.find((p) => p.label === scaleLabel)?.feetPerInch ?? null;
 
+  // The real PDF page numbers that were actually selected/processed at
+  // upload time - `pages` is null for documents uploaded before this field
+  // existed, so fall back to treating every page as available.
+  const availablePages = useMemo<number[]>(() => {
+    if (!meta) return [];
+    return meta.pages && meta.pages.length > 0 ? meta.pages : Array.from({ length: meta.page_count }, (_, i) => i + 1);
+  }, [meta]);
+  const currentPage = availablePages[currentIndex] ?? 1;
+
   // Fetch document metadata (also confirms ownership and processing status).
   useEffect(() => {
     if (!user) return;
     setMeta(null);
     setMetaError(null);
+    setPdfLoadProgress(null);
     api
       .getPdfMeta(user.token, pdfId)
       .then(setMeta)
@@ -216,14 +242,15 @@ export function PdfViewer({ pdfId }: { pdfId: string }) {
     setZoom(fitMode === "width" ? widthZoom : Math.min(widthZoom, availableHeight / pageNativeSize.height));
   }, [fitMode, pageNativeSize]);
 
-  const goToPage = useCallback(
-    (n: number) => {
-      if (!meta) return;
-      const clamped = Math.min(Math.max(1, n), meta.page_count);
-      setCurrentPage(clamped);
+  // `position` is 1-based, into availablePages - not a raw PDF page number.
+  const goToIndex = useCallback(
+    (position: number) => {
+      if (availablePages.length === 0) return;
+      const clamped = Math.min(Math.max(1, position), availablePages.length);
+      setCurrentIndex(clamped - 1);
       setPageInputValue(String(clamped));
     },
-    [meta]
+    [availablePages.length]
   );
 
   function zoomBy(factor: number) {
@@ -356,14 +383,14 @@ export function PdfViewer({ pdfId }: { pdfId: string }) {
   return (
     <div ref={shellRef} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
       <div className="flex h-12 shrink-0 flex-wrap items-center gap-1 border-b px-2">
-        <ToolbarButton label="Previous page" onClick={() => goToPage(currentPage - 1)} disabled={currentPage <= 1}>
+        <ToolbarButton label="Previous page" onClick={() => goToIndex(currentIndex)} disabled={currentIndex <= 0}>
           <ChevronLeft />
         </ToolbarButton>
         <form
           className="flex items-center gap-1.5"
           onSubmit={(event) => {
             event.preventDefault();
-            goToPage(Number(pageInputValue));
+            goToIndex(Number(pageInputValue));
           }}
         >
           <Input
@@ -371,14 +398,14 @@ export function PdfViewer({ pdfId }: { pdfId: string }) {
             className="h-8 w-14 text-center"
             value={pageInputValue}
             onChange={(event) => setPageInputValue(event.target.value)}
-            onBlur={() => goToPage(Number(pageInputValue))}
+            onBlur={() => goToIndex(Number(pageInputValue))}
           />
-          <span className="text-sm text-muted-foreground">/ {meta.page_count}</span>
+          <span className="text-sm text-muted-foreground">/ {availablePages.length}</span>
         </form>
         <ToolbarButton
           label="Next page"
-          onClick={() => goToPage(currentPage + 1)}
-          disabled={currentPage >= meta.page_count}
+          onClick={() => goToIndex(currentIndex + 2)}
+          disabled={currentIndex >= availablePages.length - 1}
         >
           <ChevronRight />
         </ToolbarButton>
@@ -468,7 +495,8 @@ export function PdfViewer({ pdfId }: { pdfId: string }) {
           <div className="relative m-auto inline-block shadow-sm">
             <Document
               file={meta.url}
-              loading={<Skeleton className="h-[600px] w-[460px]" />}
+              onLoadProgress={({ loaded, total }) => setPdfLoadProgress(total > 0 ? loaded / total : null)}
+              loading={<PdfLoadingIndicator progress={pdfLoadProgress} />}
               error={
                 <Alert variant="destructive" className="w-96">
                   <AlertTitle>Couldn&apos;t render this PDF</AlertTitle>

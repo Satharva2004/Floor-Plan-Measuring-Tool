@@ -1,9 +1,16 @@
 "use client";
 
-import { FileText, LogOut, TriangleAlert } from "lucide-react";
+import { ChevronsUpDown, FileText, LogOut, Ruler, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -20,6 +27,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { UploadDialog } from "@/components/upload-dialog";
 import { useAuth } from "@/lib/auth-context";
+import { APP_NAME } from "@/lib/constants";
 import { groupPdfsByDate } from "@/lib/date-groups";
 import { usePdfLibrary } from "@/lib/pdf-library-context";
 
@@ -30,10 +38,16 @@ export function AppSidebar() {
   const router = useRouter();
 
   const groups = groupPdfsByDate(pdfs);
+  const emailInitial = user?.email?.[0]?.toUpperCase() ?? "?";
 
   return (
     <Sidebar>
-      <SidebarHeader className="p-3">
+      <SidebarHeader className="gap-3 p-3">
+        <div className="flex items-center gap-2 px-1 pt-1">
+          <img src="https://media.licdn.com/dms/image/v2/D560BAQHRRHYRf3WZWg/company-logo_200_200/company-logo_200_200/0/1709055160728/thetailoredai_logo?e=2147483647&v=beta&t=zgoD-kt4ICmqJVq9Jrq0WTPuadyLShYpB8bPeZH0FlM" alt="Logo" className="size-8" />
+          <span className="truncate font-heading text-md">{APP_NAME}</span>
+        </div>
+        <hr />
         <UploadDialog
           onUploaded={(pdfId) => {
             refresh();
@@ -100,13 +114,23 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
-        <div className="truncate px-3 py-1 text-sm text-sidebar-foreground/80">{user?.email}</div>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={logout} tooltip="Log out">
-              <LogOut />
-              <span>Log out</span>
-            </SidebarMenuButton>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<SidebarMenuButton size="lg" />}>
+                <Avatar size="sm">
+                  <AvatarFallback>{emailInitial}</AvatarFallback>
+                </Avatar>
+                <span className="truncate text-sm">{user?.email}</span>
+                <ChevronsUpDown className="ml-auto size-4 text-muted-foreground" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="start">
+                <DropdownMenuItem onClick={logout} variant="destructive">
+                  <LogOut />
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

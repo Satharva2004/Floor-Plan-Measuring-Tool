@@ -30,3 +30,15 @@ def require_pdf_owner(pdf_id: str, user_id: str = Depends(get_current_user_id)) 
     if not doc.exists or doc.to_dict().get("user_id") != user_id:
         raise HTTPException(status_code=404, detail="PDF not found")
     return {"id": doc.id, **doc.to_dict()}
+
+
+def require_pdf_page(page_number: int, pdf: dict = Depends(require_pdf_owner)) -> dict:
+    """Same ownership check as require_pdf_owner, plus: only pages the user
+    actually chose at upload time are servable. Without this, a page outside
+    that selection would still get computed and cached the first time
+    anyone requested it - quietly processing "all" pages regardless of what
+    was selected."""
+    selected_pages = pdf.get("pages")
+    if selected_pages is not None and page_number not in selected_pages:
+        raise HTTPException(status_code=404, detail="Page not found")
+    return pdf
