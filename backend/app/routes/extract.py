@@ -1,28 +1,26 @@
-import pymupdf
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
-from app.db.firebase import bucket, db
+from app.services import cache
 from app.services.extraction import extract_segments
+from app.services.pdf_loader import load_page
+from app.services.tick_filter import remove_tick_marks
+from app.services.wall_filter import is_wall_path
 
 router = APIRouter()
 
 
+def get_segments(pdf_id: str, page_number: int):
+    cache_key = f"segments:{pdf_id}:{page_number}"
+    segments = cache.get(cache_key)
+    if segments is None:
+        page = load_page(pdf_id, page_number)
+        segments = extract_segments(page, path_filter=is_wall_path)
+        segments = remove_tick_marks(segments)
+        cache.set(cache_key, segments)
+    return segments
+
+
 @router.get("/pdfs/{pdf_id}/pages/{page_number}/segments")
 def get_page_segments(pdf_id: str, page_number: int):
-    doc_ref = db.collection("pdfs").document(pdf_id).get()
-    if not doc_ref.exists:
-        raise HTTPException(status_code=404, detail="PDF not found")
-
-    pdf_data = doc_ref.to_dict()
-    page_count = pdf_data["page_count"]
-
-    if page_number < 1 or page_number > page_count:
-        raise HTTPException(status_code=400, detail=f"page_number must be between 1 and {page_count}")
-
-    contents = bucket.blob(pdf_data["storage_path"]).download_as_bytes()
-    pdf = pymupdf.open(stream=contents, filetype="pdf")
-    page = pdf[page_number - 1]
-
-    segments = extract_segments(page)
-
+    segments = get_segments(pdf_id, page_number)
     return {"pdf_id": pdf_id, "page": page_number, "segment_count": len(segments), "segments": segments}

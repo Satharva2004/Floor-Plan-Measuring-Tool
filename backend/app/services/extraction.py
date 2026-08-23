@@ -8,11 +8,18 @@ def _bezier_points(p0, p1, p2, p3, steps=8):
     return points
 
 
-def extract_segments(page):
-    """Every vector drawing object on the page, flattened into line segments (x1, y1, x2, y2) in PDF points."""
+def extract_segments(page, path_filter=None):
+    """Every vector drawing object on the page, flattened into line segments (x1, y1, x2, y2) in PDF points.
+
+    path_filter, if given, is called with each raw drawing-path dict (color, width, rect, ...)
+    and only paths it accepts are flattened into segments.
+    """
     segments = []
 
     for path in page.get_drawings():
+        if path_filter is not None and not path_filter(path):
+            continue
+
         for item in path["items"]:
             kind = item[0]
 
