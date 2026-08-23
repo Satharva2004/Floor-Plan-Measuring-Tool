@@ -1,11 +1,12 @@
 import uuid
-from datetime import timedelta
 
 import pymupdf
-from fastapi import APIRouter, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, UploadFile
 from firebase_admin import firestore
 
 from app.db.firebase import bucket, db
+from app.dependencies import get_current_user_id
+from app.services.processing import process_pdf
 
 router = APIRouter()
 
@@ -29,7 +30,12 @@ def parse_pages(pages: str, page_count: int) -> list[int]:
 
 
 @router.post("/upload")
-def upload_file(file: UploadFile, pages: str = Form("all")):
+def upload_file(
+    file: UploadFile,
+    background_tasks: BackgroundTasks,
+    pages: str = Form("all"),
+    user_id: str = Depends(get_current_user_id),
+):
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="File must be a PDF")
 
@@ -59,8 +65,6 @@ def upload_file(file: UploadFile, pages: str = Form("all")):
     blob = bucket.blob(storage_path)
     blob.upload_from_string(contents, content_type=file.content_type)
 
-    download_url = blob.generate_signed_url(expiration=timedelta(hours=1))
-
     db.collection("pdfs").document(file_id).set(
         {
             "filename": file.filename,
@@ -68,13 +72,18 @@ def upload_file(file: UploadFile, pages: str = Form("all")):
             "storage_path": storage_path,
             "page_count": page_count,
             "uploaded_at": firestore.SERVER_TIMESTAMP,
+            "user_id": user_id,
+            # The PDF itself is already validated and stored at this point -
+            # "reading" reflects that real step. process_pdf() (below) then
+            # takes it through the rest of the real pipeline.
+            "status": "processing",
+            "stage": "reading",
+            "pages_processed": 0,
+            "pages_total": len(pages_to_process),
+            "error": None,
         }
     )
 
-    return {
-        "id": file_id,
-        "filename": file.filename,
-        "url": download_url,
-        "page_count": page_count,
-        "pages_to_process": pages_to_process,
-    }
+    background_tasks.add_task(process_pdf, file_id, pages_to_process)
+
+    return {"id": file_id, "filename": file.filename, "page_count": page_count}

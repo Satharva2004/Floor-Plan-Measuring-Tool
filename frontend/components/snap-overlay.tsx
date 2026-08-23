@@ -2,31 +2,58 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import type { Segment, SnapPoint, SnapPointType } from "@/lib/types";
+
 const SNAP_TOLERANCE_PX = 12;
 
-const MARKER_COLORS = {
+const MARKER_COLORS: Record<string, string> = {
   endpoint: "red",
   midpoint: "blue",
   intersection: "green",
   nearest: "orange",
 };
 
+/** Only the viewport fields the overlay actually reads - avoids coupling to pdfjs-dist's exact type shape. */
+export interface PdfViewport {
+  width: number;
+  height: number;
+  scale: number;
+}
+
+interface PixelPoint {
+  px: number;
+  py: number;
+  type: SnapPointType | "nearest";
+}
+
+interface SelectedPoint extends PixelPoint {
+  pdfX: number;
+  pdfY: number;
+}
+
+interface PixelSegment {
+  px1: number;
+  py1: number;
+  px2: number;
+  py2: number;
+}
+
 // PDF points map 1:1 to paper inches (72pt = 1in), so with the drawing's
 // printed scale (real feet per paper inch) a point distance converts
 // straight to real-world feet, formatted the way the plan's own dimensions
 // are (feet-apostrophe-inches, nearest 1/8").
-function formatFeetInches(feet) {
+function formatFeetInches(feet: number): string {
   let totalEighths = Math.round(feet * 12 * 8);
   const wholeFeet = Math.floor(totalEighths / (12 * 8));
   totalEighths -= wholeFeet * 12 * 8;
   const wholeInches = Math.floor(totalEighths / 8);
   const fracEighths = totalEighths % 8;
-  const fractions = { 1: "1/8", 2: "1/4", 3: "3/8", 4: "1/2", 5: "5/8", 6: "3/4", 7: "7/8" };
+  const fractions: Record<number, string> = { 1: "1/8", 2: "1/4", 3: "3/8", 4: "1/2", 5: "5/8", 6: "3/4", 7: "7/8" };
   const inchesStr = fracEighths ? `${wholeInches} ${fractions[fracEighths]}` : `${wholeInches}`;
   return `${wholeFeet}'-${inchesStr}"`;
 }
 
-function closestPointOnSegment(px, py, x1, y1, x2, y2) {
+function closestPointOnSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number) {
   const dx = x2 - x1;
   const dy = y2 - y1;
   const lenSq = dx * dx + dy * dy;
@@ -44,7 +71,7 @@ function closestPointOnSegment(px, py, x1, y1, x2, y2) {
 // keeps both visible at once.
 const MARKER_ALPHA = 0.55;
 
-function drawMarker(ctx, p) {
+function drawMarker(ctx: CanvasRenderingContext2D, p: PixelPoint) {
   const color = MARKER_COLORS[p.type] || "red";
   ctx.save();
   ctx.globalAlpha = MARKER_ALPHA;
@@ -81,7 +108,7 @@ function drawMarker(ctx, p) {
 // end, a red double-headed arrow spanning between them, and the distance
 // label floating above the midpoint — mirrors the look of Bluebeam's
 // measurement tool so a mid-measurement drag reads the same way.
-function drawDimensionLine(ctx, p1, p2, label) {
+function drawDimensionLine(ctx: CanvasRenderingContext2D, p1: PixelPoint, p2: PixelPoint, label: string) {
   const dx = p2.px - p1.px;
   const dy = p2.py - p1.py;
   const len = Math.hypot(dx, dy);
@@ -113,7 +140,7 @@ function drawDimensionLine(ctx, p1, p2, label) {
   ctx.lineTo(p2.px, p2.py);
   ctx.stroke();
 
-  function drawArrowhead(tip, dirX, dirY) {
+  function drawArrowhead(tip: PixelPoint, dirX: number, dirY: number) {
     const backX = tip.px - dirX * arrowLen;
     const backY = tip.py - dirY * arrowLen;
     ctx.beginPath();
@@ -138,38 +165,39 @@ function drawDimensionLine(ctx, p1, p2, label) {
   const padding = 3;
   const metrics = ctx.measureText(label);
   ctx.fillStyle = "white";
-  ctx.fillRect(
-    labelX - metrics.width / 2 - padding,
-    labelY - 8 - padding,
-    metrics.width + padding * 2,
-    16 + padding * 2
-  );
+  ctx.fillRect(labelX - metrics.width / 2 - padding, labelY - 8 - padding, metrics.width + padding * 2, 16 + padding * 2);
   ctx.fillStyle = "black";
   ctx.fillText(label, labelX, labelY);
 }
 
-export default function SnapOverlay({ viewport, points, segments, feetPerInch }) {
-  const staticCanvasRef = useRef(null);
-  const canvasRef = useRef(null);
-  const rafRef = useRef(null);
-  const cursorRef = useRef(null);
-  const [hovered, setHovered] = useState(null);
-  const [selected, setSelected] = useState([]);
-  const [showAllPoints, setShowAllPoints] = useState(false);
+interface SnapOverlayProps {
+  viewport: PdfViewport;
+  points: SnapPoint[];
+  segments: Segment[];
+  feetPerInch: number | null;
+  showAllPoints: boolean;
+}
+
+export function SnapOverlay({ viewport, points, segments, feetPerInch, showAllPoints }: SnapOverlayProps) {
+  const staticCanvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rafRef = useRef<number | null>(null);
+  const cursorRef = useRef({ x: 0, y: 0 });
+  const [hovered, setHovered] = useState<PixelPoint | null>(null);
+  const [selected, setSelected] = useState<SelectedPoint[]>([]);
 
   // Backend coordinates come from PyMuPDF's get_drawings(), which are already
   // in top-left-origin, y-down page space (points, unscaled) — the same
   // convention as the rendered page image. That's NOT the raw bottom-left,
-  // y-up PDF space that viewport.convertToViewportPoint expects, so using it
+  // y-up PDF space that pdf.js's convertToViewportPoint expects, so using it
   // here would apply a spurious extra vertical flip. A plain scale multiply
   // is the correct conversion (assumes the page has no rotation, true here).
-  const pixelPoints = useMemo(
-    () =>
-      points.map((p) => ({ px: p.x * viewport.scale, py: p.y * viewport.scale, type: p.type })),
+  const pixelPoints = useMemo<PixelPoint[]>(
+    () => points.map((p) => ({ px: p.x * viewport.scale, py: p.y * viewport.scale, type: p.type })),
     [viewport, points]
   );
 
-  const pixelSegments = useMemo(
+  const pixelSegments = useMemo<PixelSegment[]>(
     () =>
       segments.map(([x1, y1, x2, y2]) => ({
         px1: x1 * viewport.scale,
@@ -185,8 +213,8 @@ export default function SnapOverlay({ viewport, points, segments, feetPerInch })
   // (continuous projection onto the closest segment, like Bluebeam's Content
   // Snap "Nearest") is the fallback, so essentially any point along any wall
   // becomes snappable, not just its fixed endpoints/midpoint.
-  function findSnapCandidate(x, y) {
-    let nearestPoint = null;
+  function findSnapCandidate(x: number, y: number): PixelPoint | null {
+    let nearestPoint: PixelPoint | null = null;
     let nearestPointDist = Infinity;
     for (const p of pixelPoints) {
       const dist = Math.hypot(p.px - x, p.py - y);
@@ -200,7 +228,7 @@ export default function SnapOverlay({ viewport, points, segments, feetPerInch })
       return nearestPoint;
     }
 
-    let nearestOnLine = null;
+    let nearestOnLine: PixelPoint | null = null;
     let nearestLineDist = Infinity;
     for (const s of pixelSegments) {
       const c = closestPointOnSegment(x, y, s.px1, s.py1, s.px2, s.py2);
@@ -224,8 +252,9 @@ export default function SnapOverlay({ viewport, points, segments, feetPerInch })
   // constrains its width, etc.) a 1:1 assumption drifts the hit-test away
   // from where the dot is actually drawn — exactly when someone has zoomed in
   // to place a point precisely.
-  function handleMouseMove(e) {
+  function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
@@ -242,11 +271,11 @@ export default function SnapOverlay({ viewport, points, segments, feetPerInch })
     });
   }
 
-  function toPdfPoint(p) {
+  function toSelectedPoint(p: PixelPoint): SelectedPoint {
     return { ...p, pdfX: p.px / viewport.scale, pdfY: p.py / viewport.scale };
   }
 
-  function distanceLabel(distPt) {
+  function distanceLabel(distPt: number): string {
     if (feetPerInch) {
       return formatFeetInches(distPt * (feetPerInch / 72));
     }
@@ -255,7 +284,7 @@ export default function SnapOverlay({ viewport, points, segments, feetPerInch })
 
   function handleClick() {
     if (!hovered) return;
-    const point = toPdfPoint(hovered);
+    const point = toSelectedPoint(hovered);
     setSelected((prev) => (prev.length >= 2 ? [point] : [...prev, point]));
   }
 
@@ -265,7 +294,9 @@ export default function SnapOverlay({ viewport, points, segments, feetPerInch })
   // moving the cursor around for a while with thousands of points on screen.
   useEffect(() => {
     const canvas = staticCanvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext("2d");
+    if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (!showAllPoints) return;
@@ -284,7 +315,9 @@ export default function SnapOverlay({ viewport, points, segments, feetPerInch })
   // mouse move.
   useEffect(() => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext("2d");
+    if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     for (const p of selected) {
@@ -303,34 +336,22 @@ export default function SnapOverlay({ viewport, points, segments, feetPerInch })
     if (hovered) {
       drawMarker(ctx, hovered);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hovered, selected, viewport, feetPerInch]);
 
   return (
     <>
-      <label
-        style={{
-          position: "absolute",
-          top: -24,
-          left: 0,
-          background: "white",
-          fontFamily: "monospace",
-          fontSize: "12px",
-        }}
-      >
-        <input type="checkbox" checked={showAllPoints} onChange={(e) => setShowAllPoints(e.target.checked)} />{" "}
-        Show all points ({pixelPoints.length})
-      </label>
       <canvas
         ref={staticCanvasRef}
         width={viewport.width}
         height={viewport.height}
-        style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none" }}
+        className="pointer-events-none absolute top-0 left-0"
       />
       <canvas
         ref={canvasRef}
         width={viewport.width}
         height={viewport.height}
-        style={{ position: "absolute", top: 0, left: 0, cursor: "crosshair" }}
+        className="absolute top-0 left-0 cursor-crosshair"
         onMouseMove={handleMouseMove}
         onClick={handleClick}
       />
