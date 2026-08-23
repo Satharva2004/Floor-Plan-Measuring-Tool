@@ -159,3 +159,9 @@ cd frontend
 bun install
 bun run dev
 ```
+
+## Deployment
+
+**Frontend — Vercel.** Point Vercel at the `frontend/` folder as the project root; it's a stock Next.js app, so nothing else is needed there. 
+
+**Backend — Render.** Render Python support is server functions: long-lived, and there's a guarantee a function keeps running once it's sent its response.
