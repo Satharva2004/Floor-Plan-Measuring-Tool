@@ -137,6 +137,13 @@ export function PdfViewer({ pdfId }: { pdfId: string }) {
   const shellRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
+  // Per-page wall data, keyed by real PDF page number, for the lifetime of
+  // this viewer instance (a fresh Map per document - PdfViewer remounts
+  // whenever the route's pdfId changes). Flipping back to an
+  // already-visited page would otherwise re-fetch it from the server every
+  // time, even though nothing about that page could have changed mid-session.
+  const pageDataCache = useRef<Map<number, { points: SnapPoint[]; segments: Segment[] }>>(new Map());
+
   const feetPerInch =
     scaleLabel === CUSTOM_SCALE
       ? customFeetPerInch
@@ -163,12 +170,24 @@ export function PdfViewer({ pdfId }: { pdfId: string }) {
       .catch((err) => setMetaError(err instanceof Error ? err.message : "Failed to load this document"));
   }, [user, pdfId]);
 
-  // Fetch wall segments/snap points for the current page.
+  // Fetch wall segments/snap points for the current page - or reuse them if
+  // this page was already visited this session.
   useEffect(() => {
     if (!user || !meta || meta.status !== "ready") return;
+
+    const cached = pageDataCache.current.get(currentPage);
+    if (cached) {
+      setPoints(cached.points);
+      setSegments(cached.segments);
+      setPointsPage(currentPage);
+      setDataError(null);
+      return;
+    }
+
     setDataError(null);
     Promise.all([api.getSnapPoints(user.token, pdfId, currentPage), api.getSegments(user.token, pdfId, currentPage)])
       .then(([pointsData, segmentsData]) => {
+        pageDataCache.current.set(currentPage, { points: pointsData, segments: segmentsData });
         setPoints(pointsData);
         setSegments(segmentsData);
         setPointsPage(currentPage);
