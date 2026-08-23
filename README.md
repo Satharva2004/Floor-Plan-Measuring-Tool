@@ -1,6 +1,6 @@
 # Floor Plan Measuring Tool
 
-I built this to solve a pretty specific problem: I'd get an architectural PDF from a client and need to measure walls on it — real distances, not guesses. So this lets you upload a PDF, pulls out the actual wall geometry from it, and then you click points directly on the drawing to measure. The clicks snap precisely to walls — endpoints, midpoints, intersections, or anywhere along a wall line — so you're not eyeballing pixels.
+I built this to solve a pretty specific problem: I'd get an architectural PDF from a client and need to measure walls on it real distances, not guesses. So this lets you upload a PDF, pulls out the actual wall geometry from it, and then you click points directly on the drawing to measure. The clicks snap precisely to walls endpoints, midpoints, intersections, or anywhere along a wall line — so you're not eyeballing pixels.
 
 ### Video Walkthrough
 https://www.loom.com/share/3c676bf5d3b9489ea0d4c250889717da
