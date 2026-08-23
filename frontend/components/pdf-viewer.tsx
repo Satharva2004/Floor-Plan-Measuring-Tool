@@ -354,7 +354,7 @@ export function PdfViewer({ pdfId }: { pdfId: string }) {
   }
 
   return (
-    <div ref={shellRef} className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+    <div ref={shellRef} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
       <div className="flex h-12 shrink-0 flex-wrap items-center gap-1 border-b px-2">
         <ToolbarButton label="Previous page" onClick={() => goToPage(currentPage - 1)} disabled={currentPage <= 1}>
           <ChevronLeft />
@@ -451,14 +451,21 @@ export function PdfViewer({ pdfId }: { pdfId: string }) {
       <div
         ref={scrollAreaRef}
         className={cn(
-          "relative min-w-0 flex-1 overflow-auto",
+          "relative min-h-0 min-w-0 flex-1 overflow-auto",
           isPanning ? "cursor-grabbing" : isSpaceHeld && "cursor-grab"
         )}
         onMouseDown={handlePanMouseDown}
         onMouseMove={handlePanMouseMove}
       >
-        <div className={cn("flex min-h-full min-w-full items-center justify-center p-6", isSpaceHeld && "select-none")}>
-          <div className="relative inline-block shadow-sm">
+        {/* No items-center/justify-center here on purpose: centering an
+            overflowing flex child that way makes its start-side overflow
+            unreachable (scrollLeft/scrollTop can't go negative) - once
+            zoomed in past the container's size, the left/top edge of the
+            page becomes permanently unscrollable-to. `m-auto` on the child
+            centers it the same way while degrading correctly to normal
+            scrollable overflow in every direction once it no longer fits. */}
+        <div className={cn("flex min-h-full min-w-full p-6", isSpaceHeld && "select-none")}>
+          <div className="relative m-auto inline-block shadow-sm">
             <Document
               file={meta.url}
               loading={<Skeleton className="h-[600px] w-[460px]" />}
