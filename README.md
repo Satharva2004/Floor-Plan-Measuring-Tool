@@ -118,6 +118,9 @@ This snap-first idea isn't novel — it's how existing takeoff/markup tools alre
 - **PlanSwift**'s Snap tool locks the cursor onto existing points during takeoff the same way, though its snap only targets points already digitized in PlanSwift or imported CAD points — not raw PDF vector geometry the way this project and Bluebeam's Content Snap do — [ConstructConnect: Using Snap](https://help.constructconnect.com/03-a-detailed-look-at-the-home-tab-and-drawing-takeoff-and-annotations-176/using-snap-1494)
 
 One trap I fell into and want to flag: PyMuPDF's coordinates are top-left-origin, y-down (matching the rendered image), while pdf.js's own coordinate helpers assume the opposite. Mixing the two silently mirrors every point vertically. The fix is just a plain scale multiply — no flip needed once you know which convention you're in.
+### Results
+
+<img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/8626b419-18cf-4b8c-af39-6b3406eb0c49" />
 
 ### If the PDF were raster instead of vector
 
