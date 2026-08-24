@@ -13,6 +13,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 interface FieldErrors {
   email?: string;
   password?: string;
@@ -30,7 +32,11 @@ export function LoginForm() {
 
   function validate(): boolean {
     const errors: FieldErrors = {};
-    if (!email.trim()) errors.email = "Email is required.";
+    if (!email.trim()) {
+      errors.email = "Email is required.";
+    } else if (!EMAIL_PATTERN.test(email.trim())) {
+      errors.email = "Please enter a valid email address.";
+    }
     if (!password) errors.password = "Password is required.";
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
