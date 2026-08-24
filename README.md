@@ -121,6 +121,7 @@ One trap I fell into and want to flag: PyMuPDF's coordinates are top-left-origin
 ### Results
 
 <img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/8626b419-18cf-4b8c-af39-6b3406eb0c49" />
+<img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/b976dcb4-8a6f-4908-b4ed-a3131d091856" />
 
 ### If the PDF were raster instead of vector
 
