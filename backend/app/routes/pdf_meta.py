@@ -1,9 +1,12 @@
+import logging
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends
 
 from app.db.firebase import bucket, db
 from app.dependencies import get_current_user_id, require_pdf_owner
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -42,3 +45,17 @@ def get_pdf(pdf: dict = Depends(require_pdf_owner)):
         "pages_total": pdf.get("pages_total"),
         "error": pdf.get("error"),
     }
+
+
+@router.delete("/pdfs/{pdf_id}")
+def delete_pdf(pdf: dict = Depends(require_pdf_owner)):
+    try:
+        bucket.blob(pdf["storage_path"]).delete()
+    except Exception:
+        # Firestore doc is the source of truth for what the user sees - if the
+        # underlying file is already gone, still remove the doc below rather
+        # than leaving an undeletable "ghost" entry in their library.
+        logger.warning("Storage object missing or failed to delete for pdf %s", pdf["id"], exc_info=True)
+
+    db.collection("pdfs").document(pdf["id"]).delete()
+    return {"id": pdf["id"]}

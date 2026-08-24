@@ -58,6 +58,13 @@ export async function getPdfMeta(token: string, id: string): Promise<PdfMeta> {
   return requestJson<PdfMeta>(`/pdfs/${id}`, { headers: authHeaders(token) });
 }
 
+export async function deletePdf(token: string, id: string): Promise<void> {
+  await requestJson<{ id: string }>(`/pdfs/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+}
+
 export async function getSegments(token: string, id: string, pageNumber: number): Promise<Segment[]> {
   const data = await requestJson<{ segments: Segment[] }>(`/pdfs/${id}/pages/${pageNumber}/segments`, {
     headers: authHeaders(token),

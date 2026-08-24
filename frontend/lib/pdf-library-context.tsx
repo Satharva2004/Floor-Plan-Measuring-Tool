@@ -11,6 +11,7 @@ interface PdfLibraryContextValue {
   isLoading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  deletePdf: (id: string) => Promise<void>;
 }
 
 const PdfLibraryContext = createContext<PdfLibraryContextValue | null>(null);
@@ -53,7 +54,19 @@ export function PdfLibraryProvider({ children }: { children: React.ReactNode }) 
     return () => clearInterval(interval);
   }, [pdfs, refresh]);
 
-  const value = useMemo(() => ({ pdfs, isLoading, error, refresh }), [pdfs, isLoading, error, refresh]);
+  const deletePdf = useCallback(
+    async (id: string) => {
+      if (!user) return;
+      await api.deletePdf(user.token, id);
+      setPdfs((prev) => prev.filter((pdf) => pdf.id !== id));
+    },
+    [user]
+  );
+
+  const value = useMemo(
+    () => ({ pdfs, isLoading, error, refresh, deletePdf }),
+    [pdfs, isLoading, error, refresh, deletePdf]
+  );
 
   return <PdfLibraryContext.Provider value={value}>{children}</PdfLibraryContext.Provider>;
 }

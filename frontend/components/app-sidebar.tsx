@@ -1,9 +1,21 @@
 "use client";
 
-import { ChevronsUpDown, FileText, LogOut, Ruler, TriangleAlert } from "lucide-react";
+import { ChevronsUpDown, FileText, LogOut, MoreHorizontal, Trash2, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
+import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -20,6 +32,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -30,12 +43,35 @@ import { useAuth } from "@/lib/auth-context";
 import { APP_NAME } from "@/lib/constants";
 import { groupPdfsByDate } from "@/lib/date-groups";
 import { usePdfLibrary } from "@/lib/pdf-library-context";
+import type { PdfSummary } from "@/lib/types";
 
 export function AppSidebar() {
   const { user, logout } = useAuth();
-  const { pdfs, isLoading, error, refresh } = usePdfLibrary();
+  const { pdfs, isLoading, error, refresh, deletePdf } = usePdfLibrary();
   const params = useParams<{ id?: string }>();
   const router = useRouter();
+
+  const [pendingDelete, setPendingDelete] = useState<PdfSummary | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    const target = pendingDelete;
+
+    setIsDeleting(true);
+    try {
+      await deletePdf(target.id);
+      toast.success(`"${target.filename}" was deleted.`);
+      if (params.id === target.id) {
+        router.replace("/");
+      }
+      setPendingDelete(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete document. Please try again.");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
 
   const groups = groupPdfsByDate(pdfs);
   const emailInitial = user?.email?.[0]?.toUpperCase() ?? "?";
@@ -105,6 +141,18 @@ export function AppSidebar() {
                         <TriangleAlert className="size-3.5 text-destructive" />
                       </SidebarMenuBadge>
                     )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger render={<SidebarMenuAction showOnHover />}>
+                        <MoreHorizontal />
+                        <span className="sr-only">Document actions</span>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent side="right" align="start">
+                        <DropdownMenuItem variant="destructive" onClick={() => setPendingDelete(pdf)}>
+                          <Trash2 />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
@@ -134,6 +182,24 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+
+      <AlertDialog open={pendingDelete != null} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete &ldquo;{pendingDelete?.filename}&rdquo;. This can&apos;t be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmDelete} disabled={isDeleting}>
+              {isDeleting && <Spinner />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sidebar>
   );
 }
