@@ -1,1 +1,1 @@
-export const APP_NAME = "Tailored AI Assignment";
+export const APP_NAME = "Architectural Measuring Tool";

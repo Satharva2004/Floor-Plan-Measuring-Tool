@@ -44,7 +44,9 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="gap-3 p-3">
         <div className="flex items-center gap-2 px-1 pt-1">
-          <img src="https://media.licdn.com/dms/image/v2/D560BAQHRRHYRf3WZWg/company-logo_200_200/company-logo_200_200/0/1709055160728/thetailoredai_logo?e=2147483647&v=beta&t=zgoD-kt4ICmqJVq9Jrq0WTPuadyLShYpB8bPeZH0FlM" alt="Logo" className="size-8 rounded-lg" />
+          <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <Ruler className="size-4" />
+          </div>
           <span className="truncate font-heading text-md">{APP_NAME}</span>
         </div>
         <hr />
