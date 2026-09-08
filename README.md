@@ -115,8 +115,9 @@ This snap-first idea isn't novel — it's how existing takeoff/markup tools alre
 One trap I fell into and want to flag: PyMuPDF's coordinates are top-left-origin, y-down (matching the rendered image), while pdf.js's own coordinate helpers assume the opposite. Mixing the two silently mirrors every point vertically. The fix is just a plain scale multiply — no flip needed once you know which convention you're in.
 ### Results
 
-<img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/8626b419-18cf-4b8c-af39-6b3406eb0c49" />
-<img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/b976dcb4-8a6f-4908-b4ed-a3131d091856" />
+<img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/127b4f0e-5656-4507-a0e1-0aea248de4c5" />
+<img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/5bc43dc2-d184-4ec5-b692-6b843c958765" />
+<img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/68f10a78-f51a-490e-9bf4-47ea2d9a7526" />
 
 ### If the PDF were raster instead of vector
 
